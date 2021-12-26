@@ -70,7 +70,7 @@ int main()
 
 	assignRandomWeights();	
 	
-	gettimeofday(&start, NULL);
+	//gettimeofday(&start, NULL);
 	while (1) 
 	{
     	if (++sample == MAX_SAMPLES) 
@@ -90,6 +90,7 @@ int main()
       		err += sqr( (samples[sample].out[i] - actual[i]) );
     	}
     	err = 0.5 * err;
+    	printf("cur err:%lf\n",err);
     	//fprintf(out, "%g\n", err);
     	//printf("mse = %g\n", err);
     	if (iterations++ > 100000) 
@@ -97,7 +98,7 @@ int main()
     	backPropagate();
   	}
 
-	gettimeofday(&stop, NULL);
+	//gettimeofday(&stop, NULL);
 
   	/* Проверить сеть */
 	for (i = 0 ; i < MAX_SAMPLES ; i++) 
@@ -123,6 +124,25 @@ int main()
 		} 
 	}
 
+	printf("All weights\n");
+	int weight_i = 0;
+	for (int i = 0; i < INPUT_NEURONS + 1; ++i)
+	{
+		for (int j = 0; j < HIDDEN_NEURONS; ++j)
+		{
+			weight_i++;
+			printf("[%d]: %lf\n", weight_i++, wih[i][j]);
+		}
+	}
+	for (int i = 0; i < HIDDEN_NEURONS + 1; ++i)
+	{
+		for (int j = 0; j < OUTPUT_NEURONS; ++j)
+		{
+			weight_i++;
+			printf("[%d]: %lf\n", weight_i++, who[i][j]);
+		}
+	}
+
 	printf("Network is %g%% correct\n", ((float)sum / (float)MAX_SAMPLES) * 100.0);
 	/* Выполнение тестов */
 	/* Здоровье Нож Пистолет Враг*/
@@ -141,6 +161,6 @@ int main()
 	printf("2103 Action %s\n", strings[action(actual)]);
 	inputs[0] = 0.0; inputs[1] = 1.0; inputs[2] = 0.0; inputs[3] = 3.0; feedForward();
 	printf("0103 Action %s\n", strings[action(actual)]);
-	fclose(out);
+	//fclose(out);
 	return 0;
 }

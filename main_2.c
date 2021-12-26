@@ -1,7 +1,13 @@
 #include "neural_net.h"
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 #include <stdlib.h>
+#ifndef DEBG
+#define DEBG 0
+#endif
+#define PRINT_DEBUG() if ( DEBG) printf("DEBUG_%d\n",__LINE__);
+
 typedef struct 
 {
 	double health;
@@ -39,6 +45,8 @@ ELEMENT samples[MAX_SAMPLES] =
 
 
 char *strings[4]={"Attack", "Run", "Wander", "Hide"};
+
+size_t feel_weigths(double const * const p_vec_weights, const size_t count);
 
 int action( double *vector )
 {
@@ -78,31 +86,55 @@ double benchmark_function (double *x, int N)
 	double err = 0.0;
 	size_t i;
 	feel_weigths(x,N);
-	feedForward();
-	for (i = 0; i < OUTPUT_NEURONS; i++) 
+	
+	for (int k =0; k < MAX_SAMPLES; ++k)
 	{
-		err += sqr((samples[sample].out[i] - actual[i]));
+        inputs[0] = samples[k].health;
+	    inputs[1] = samples[k].knife;
+	    inputs[2] = samples[k].gun;
+	    inputs[3] = samples[k].enemy;
+	    target[0] = samples[k].out[0];
+	    target[1] = samples[k].out[1];
+	    target[2] = samples[k].out[2];
+	    target[3] = samples[k].out[3];
+		feedForward();
+		for (i = 0; i < OUTPUT_NEURONS; i++) 
+		{
+			err += sqr((samples[sample].out[i] - actual[i]));
+		}
 	}
 	err = 0.5 * err;
 	return err;
 }
 
+void generatin_population_de (double **population, int pop_size)
+{
+	for (int i=0;i < pop_size;i++)
+	{
+		for (int j=0; j < TOTAL_WEIGHTS;j++)
+		{
+			population[i][j] = (RAND_WEIGHT) * 40;
+		}
+	}
+}
 //!
 void generatin_population (double **population, int pop_size)
 {
-    for (int i=0;i!=pop_size;i++)
-    {
-        for (int j=0;j!=TOTAL_WEIGHTS;j++)
-        {
-            population[i][j] = RAND_WEIGHT;
-        }
-    }
+	generatin_population_de(population,pop_size);
+	return;
+	for (int i=0;i < pop_size;i++)
+	{
+		for (int j=0; j < TOTAL_WEIGHTS;j++)
+		{
+			population[i][j] = RAND_WEIGHT;
+		}
+	}
 }
-
 //!
 void copy_array(double **x, double **y, int pop_size)
 {
-    for (int i=0;i!=pop_size;i++)
+	size_t i;
+    for (i=0; i < pop_size;i++)
     {
         memcpy(y[i],x[i], sizeof(x[0]) * TOTAL_WEIGHTS);
     }
@@ -114,20 +146,22 @@ int main()
 	double err;
 	int i,j, iterations=0;
 	int sum = 0;
-	struct timeval start;
-	struct timeval stop;
+	//struct timeval start;
+	//struct timeval stop;
 
 
-	int FEV = 1000000000;             // Кол-во вычислений
+	int FEV = 10000000 * 5;             // Кол-во вычислений
 	/*! DE */
 	const int pop_size = 50;						// Размер популяции
-	double best_fitness = 1e300;					// лучшая пригодность
+	double best_fitness = 1000;//1e300;					// лучшая пригодность
 	double **population = (double**) malloc(sizeof(double*) * pop_size);	// lines
 	double **population_new = (double**) malloc(sizeof(double*) * pop_size);
 	double * solution = (double*) malloc(sizeof(double) * TOTAL_WEIGHTS);
 	double * fitness = (double*) malloc(sizeof(double) * pop_size);
 	double * fitness_new = (double*) malloc(sizeof(double) * pop_size);
+
 	double *u = (double*)malloc(sizeof(double)*TOTAL_WEIGHTS);
+	double *best_solution = (double*)malloc(sizeof(double)*TOTAL_WEIGHTS);
 
 	for (i = 0; i < pop_size; ++i)
 	{
@@ -135,42 +169,41 @@ int main()
 		population_new[i] = (double*)malloc(sizeof(double)*TOTAL_WEIGHTS);
 	}
 
+	generatin_population (population, pop_size);
+	copy_array(population, population_new, pop_size);
+
 	//FILE *out = fopen("stats.txt", "w");
 	/* Инициализировать генератор случайных чисел */
 	srand( time(NULL) );
-	for (int i=0; i!=pop_size; i++)
+	
+	
+	for (i = 0; i < pop_size; ++i)
 	{
-		for (int j=0; j!=TOTAL_WEIGHTS; j++)
+		for (j = 0; j < TOTAL_WEIGHTS; ++j)
 		{
-			solution[j]=population[i][j];
+			u[j] = population[i][j];
 		}
-
-		fitness[i] = benchmark_function(solution, TOTAL_WEIGHTS);
-		fitness_new[i] = fitness[i];
-		FEV--;
-		if (fitness[i]<=best_fitness)
-		{
-			best_fitness = fitness[i];
-		}
+		fitness[i] = fitness_new[i] = benchmark_function(u, TOTAL_WEIGHTS);
 	}
-	
-	generatin_population (population, pop_size);
-	copy_array(population, population_new, pop_size);
-	gettimeofday(&start, NULL);
-	
 	while (FEV>0)
 	{
-		for (int i=0; i!=pop_size; i++)
+		for (i=0; i < pop_size; i++)
 		{
 			int r1, r2, r3;
 			indecies_generation(&r1,&r2,&r3, pop_size);
-            double CR = RAND_WEIGHT*(0.9-0.1)-0.1;
-            double F = RAND_WEIGHT*(0.9-0.1)-0.1;
-            int jrand = RAND_WEIGHT*(TOTAL_WEIGHTS-1);
-
-            for (int j=0; j!=TOTAL_WEIGHTS; j++)
+			// Управляющие параметры [0: 1]
+            double CR 	= (RAND_WEIGHT + 0.5) * (0.9 - 0.5) + 0.5;//*(0.9-0.5)-0.1;
+            double F 	= (RAND_WEIGHT + 0.5);//*(0.9-0.5)-0.1;
+            if ( (CR > 1 || CR < 0) || (F > 1 || F < 0))
             {
-                if (CR<RAND_WEIGHT || j == jrand)
+            	printf("ERROR");
+        		exit(1);
+        	}
+            int jrand = (RAND_WEIGHT + 0.5)*(TOTAL_WEIGHTS-1);
+
+            for ( j=0; j < TOTAL_WEIGHTS; j++)
+            {
+                if (CR< (RAND_WEIGHT + 0.5) || j == jrand)
                 {
                     u[j] = population[i][j]+F*(population[i][j]-population[r1][j])+F*(population[r2][j]-population[r3][j]);
                 }
@@ -178,6 +211,14 @@ int main()
                 {
                     u[j] = population[i][j];
                 }
+                /*if (u[j] > 20) 
+                {
+                	u[j] = (20 + population[i][j]) / 2;
+                }
+                else if (u[j] < -20)
+                {
+                	u[j] = (-20 + population[i][j]) / 2; //-0.5;
+                }*/
             }
 
             double test = benchmark_function(u, TOTAL_WEIGHTS);
@@ -186,21 +227,28 @@ int main()
             if (test<=fitness[i])
             {
                 fitness_new[i] = test;
-                for (int j=0; j!=TOTAL_WEIGHTS; j++)
+                for (j=0; j < TOTAL_WEIGHTS; j++)
                 {
                     population_new[i][j]=u[j];
                 }
+
                 if (test<=best_fitness)
                 {
+            		PRINT_DEBUG();
+            		//printf("new fitness : %f\n", test);
                     best_fitness = test;
-                    printf("FEV: %lf, best fitness: %lf\n",(double)FEV, (double)best_fitness);
+                	for (j=0; j < TOTAL_WEIGHTS; j++)
+                	{
+                    	best_solution[j] = u[j];
+                	}
+            		PRINT_DEBUG();
                 }
             }
         }
 
-        for (int i=0;i!=pop_size; i++)
+        for (int i=0;i<pop_size; i++)
         {
-            for (int j=0;j!=TOTAL_WEIGHTS;j++)
+            for (int j=0;j<TOTAL_WEIGHTS;j++)
             {
                 population[i][j] = population_new[i][j];
             }
@@ -208,9 +256,14 @@ int main()
         }
 
     }
+    printf("best solution \n");
+    printf("best fitness %lf\n",best_fitness);
+    for (i = 0; i < TOTAL_WEIGHTS; ++i)
+    	printf("[%d] : %lf\n",i,best_solution[i]);
+    printf("\n");
 
-	gettimeofday(&stop, NULL);
-
+	//gettimeofday(&stop, NULL);
+    feel_weigths(best_solution,TOTAL_WEIGHTS);
   	/* Проверить сеть */
 	for (i = 0 ; i < MAX_SAMPLES ; i++) 
 	{
